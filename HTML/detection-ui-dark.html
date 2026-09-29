@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Canon Vision Pipeline — Detection Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['JetBrains Mono', 'monospace'],
+            sans: ['IBM Plex Sans', 'sans-serif'],
+          },
+          colors: {
+            base: '#0d1117',
+            surface: '#161b22',
+            panel: '#1c2128',
+            border: '#30363d',
+            text: '#e6edf3',
+            sub: '#8b949e',
+            accent: '#58a6ff',
+            green: '#3fb950',
+            yellow: '#d29922',
+            red: '#f85149',
+            purple: '#bc8cff'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background:#0d1117; color:#e6edf3; font-family:'IBM Plex Sans', sans-serif; }
+    .grid-bg {
+      background:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      background-color: #11161d;
+    }
+    .cam-feed::after{
+      content:"";
+      position:absolute; inset:0;
+      background:linear-gradient(180deg, transparent 60%, rgba(88,166,255,0.08) 100%);
+      pointer-events:none;
+    }
+    .pulse { animation:pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50% { opacity:.45; transform:scale(.85); }
+    }
+    .bbox {
+      position:absolute; border:2px solid #58a6ff; border-radius:10px;
+      box-shadow:0 0 0 1px rgba(88,166,255,.15), 0 0 20px rgba(88,166,255,.15);
+    }
+    .bbox.red { border-color:#f85149; box-shadow:0 0 0 1px rgba(248,81,73,.15), 0 0 20px rgba(248,81,73,.15);}
+  </style>
+</head>
+<body>
+  <header class="h-14 border-b border-border bg-surface sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-base">
+          <i class="fa-solid fa-camera text-base"></i>
+        </div>
+        <div>
+          <div class="font-mono font-semibold text-sm">Canon Vision Pipeline</div>
+          <div class="text-[11px] text-sub">Detection + OOD + FSM Monitor</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-xs">
+        <span class="px-2.5 py-1 rounded-full border border-green/30 bg-green/10 text-green">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-green mr-1 pulse"></span>RUNNING
+        </span>
+        <span class="font-mono px-2.5 py-1 rounded-md border border-border bg-panel text-sub">MODEL v1.3</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-6">
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <h1 class="text-xl font-semibold">실시간 검사 대시보드</h1>
+        <p class="text-sm text-sub mt-1">타겟 검출 결과, OOD 여부, FSM 진행 상태를 한 화면에서 확인합니다.</p>
+      </div>
+      <div class="grid grid-cols-3 gap-3 min-w-[380px]">
+        <div class="rounded-xl border border-border bg-surface px-4 py-3">
+          <div class="text-xs text-sub">Confidence</div>
+          <div class="font-mono text-2xl font-bold text-green mt-1">0.92</div>
+        </div>
+        <div class="rounded-xl border border-border bg-surface px-4 py-3">
+          <div class="text-xs text-sub">Entropy</div>
+          <div class="font-mono text-2xl font-bold text-yellow mt-1">0.18</div>
+        </div>
+        <div class="rounded-xl border border-border bg-surface px-4 py-3">
+          <div class="text-xs text-sub">OOD</div>
+          <div class="font-mono text-2xl font-bold text-green mt-1">FALSE</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <section class="col-span-8">
+        <div class="rounded-2xl border border-border bg-surface overflow-hidden">
+          <div class="h-12 px-4 border-b border-border flex items-center justify-between">
+            <div class="flex items-center gap-2 text-sm">
+              <i class="fa-solid fa-video text-accent"></i>
+              <span>Camera #02 / Live Feed</span>
+            </div>
+            <div class="text-xs text-sub font-mono">Frame 0001284</div>
+          </div>
+
+          <div class="relative cam-feed grid-bg h-[520px]">
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="text-center">
+                <div class="text-6xl text-sub/50 mb-4"><i class="fa-solid fa-display"></i></div>
+                <p class="text-sub">실제 구현 시 카메라 스트림 표시 영역</p>
+                <p class="text-xs text-sub/70 mt-2 font-mono">Bounding Box / Label Overlay</p>
+              </div>
+            </div>
+
+            <div class="bbox" style="left:10%; top:19%; width:24%; height:22%;">
+              <div class="absolute -top-8 left-0 px-3 py-1 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-mono">
+                Target 2 · 0.92
+              </div>
+            </div>
+
+            <div class="bbox red" style="left:58%; top:55%; width:20%; height:16%; opacity:.75;">
+              <div class="absolute -top-8 left-0 px-3 py-1 rounded-lg bg-red/15 border border-red/30 text-red text-xs font-mono">
+                Similar UI · Blocked
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mt-4">
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <div class="text-xs text-sub uppercase tracking-wider mb-2">Detection Result</div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-sub">Current Target</span><span class="font-mono text-accent">Target 2</span></div>
+              <div class="flex justify-between"><span class="text-sub">Bounding Box</span><span class="font-mono">x:124 y:83</span></div>
+              <div class="flex justify-between"><span class="text-sub">Latency</span><span class="font-mono">42 ms</span></div>
+            </div>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <div class="text-xs text-sub uppercase tracking-wider mb-2">OOD Gate</div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-sub">Entropy Threshold</span><span class="font-mono text-yellow">0.25</span></div>
+              <div class="flex justify-between"><span class="text-sub">Feature Distance</span><span class="font-mono text-green">0.11</span></div>
+              <div class="flex justify-between"><span class="text-sub">PatchCore Score</span><span class="font-mono text-green">0.08</span></div>
+            </div>
+          </div>
+          <div class="rounded-xl border border-border bg-surface p-4">
+            <div class="text-xs text-sub uppercase tracking-wider mb-2">Action Status</div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-sub">FSM Result</span><span class="font-mono text-green">PASS</span></div>
+              <div class="flex justify-between"><span class="text-sub">Next Action</span><span class="font-mono text-accent">Move to T3</span></div>
+              <div class="flex justify-between"><span class="text-sub">Executor</span><span class="font-mono">Ready</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="col-span-4 space-y-4">
+        <div class="rounded-2xl border border-border bg-surface p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold">FSM 진행 상태</h2>
+            <span class="text-xs px-2 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent">Step 2/4</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs font-mono">
+            <div class="flex-1 rounded-xl border border-green/30 bg-green/10 px-3 py-3 text-green text-center">T1 ✓</div>
+            <div class="flex-1 rounded-xl border border-accent/30 bg-accent/10 px-3 py-3 text-accent text-center">T2</div>
+            <div class="flex-1 rounded-xl border border-border bg-panel px-3 py-3 text-sub text-center">T3</div>
+            <div class="flex-1 rounded-xl border border-border bg-panel px-3 py-3 text-sub text-center">T4</div>
+          </div>
+          <div class="mt-4 rounded-xl bg-panel border border-border p-3 text-sm">
+            <div class="text-sub mb-1">현재 상태 설명</div>
+            <div><span class="text-accent font-medium">Target 2</span> 검출 완료. 다음 단계인 <span class="text-text font-medium">Target 3</span> ROI만 활성화됩니다.</div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-border bg-surface p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold">이상 상태 요약</h2>
+            <span class="text-xs px-2 py-1 rounded-full bg-green/10 border border-green/20 text-green">Stable</span>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between"><span class="text-sub">False Positive Risk</span><span class="font-mono text-green">Low</span></div>
+            <div class="flex justify-between"><span class="text-sub">Lighting Shift</span><span class="font-mono text-yellow">Medium</span></div>
+            <div class="flex justify-between"><span class="text-sub">Blur Level</span><span class="font-mono">0.09</span></div>
+            <div class="flex justify-between"><span class="text-sub">Recommendation</span><span class="font-mono text-accent">Continue</span></div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-border bg-surface p-5">
+          <h2 class="text-sm font-semibold mb-4">이벤트 로그</h2>
+          <div class="space-y-2 text-xs font-mono">
+            <div class="rounded-lg bg-panel border border-border px-3 py-2 text-sub">14:21:01  Camera stream connected</div>
+            <div class="rounded-lg bg-panel border border-border px-3 py-2 text-green">14:21:05  Target 1 detected / FSM advance</div>
+            <div class="rounded-lg bg-panel border border-border px-3 py-2 text-accent">14:21:11  Target 2 detected / confidence 0.92</div>
+            <div class="rounded-lg bg-panel border border-border px-3 py-2 text-red">14:21:14  Similar UI blocked by OOD gate</div>
+            <div class="rounded-lg bg-panel border border-border px-3 py-2 text-sub">14:21:16  Waiting for Target 3</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <button class="rounded-xl border border-accent/30 bg-accent/10 text-accent py-3 text-sm font-medium">
+            <i class="fa-solid fa-play mr-2"></i>Start
+          </button>
+          <button class="rounded-xl border border-border bg-panel text-sub py-3 text-sm font-medium">
+            <i class="fa-solid fa-rotate-left mr-2"></i>Reset
+          </button>
+        </div>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>
